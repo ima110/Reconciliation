@@ -1,65 +1,219 @@
 <!DOCTYPE html>
 <html>
+    <head>
 
-<head>
-  <script>
-    let globalId = 1;
-    let todoState = [];
-    let oldTodoState = [];
+    </head>
+    <body>
+    
+    <script>
+        // initializing variables and array
+        let globalId = 1;
+        let todoState =[];
+        let todoStateM = [];
 
-    function addTodo() {
-      // big function we wrote in the beginning
+        // creating function to change status od todo to "done" onclick
+        function markAsDone(Id){
+            const parent = document.getElementById(Id);
+            parent.children[2].innerHTML="Done!"
+        }
+
+        // create child element under parent dev  and populate it with content 
+        function createChild(title,description,globalId){
+            let child = document.createElement("div");
+            child.className = "todo-card";
+            let firstGrandChild = document.createElement("div");
+            firstGrandChild.innerHTML = title;
+            let secondGrandChild = document.createElement("div");
+            secondGrandChild.innerHTML = description;
+            let thirdGrandChild= document.createElement("button");
+            thirdGrandChild.innerHTML = "Mark as Done";
+            thirdGrandChild.setAttribute("onclick",`markAsDone(${globalId})`);
+            child.setAttribute("id",globalId)
+
+            child.appendChild(firstGrandChild);
+            child.appendChild(secondGrandChild);
+            child.appendChild(thirdGrandChild);
+            return child;
+        }
+
+        // create function to update child element with new todo recieved from server
+    function updateTodo(newTodo) {
+    const parent = document.getElementById("todos");
+
+    // Create a map of current children in DOM
+    const existingTodos = new Map(); 
+    parent.childNodes.forEach(child => {
+        const id = parseInt(child.id);
+        if (!isNaN(id)) {
+            existingTodos.set(id, child);
+        }
+    });
+
+    const newTodoIds = new Set();
+
+    for (let i = 0; i < newTodo.length; i++) {
+        const todo = newTodo[i];
+        const { title, description, id } = todo;
+        newTodoIds.add(id);
+
+        if (existingTodos.has(id)) {
+            // Check if content needs updating
+            const existing = existingTodos.get(id);
+            if (
+                existing.children[0].innerHTML !== title ||
+                existing.children[1].innerHTML !== description
+            ) {
+                existing.children[0].innerHTML = title;
+                existing.children[1].innerHTML = description;
+            }
+        } else {
+            // Add new todo
+            const newEl = createChild(title, description, id);
+            parent.appendChild(newEl);
+        }
     }
 
-    function removeTodo(todo) {
-      const element = document.getElementById(todo.id);
-      element.parent.removeChild(element);
+    // Remove todos that no longer exist
+    existingTodos.forEach((element, id) => {
+        if (!newTodoIds.has(id)) {
+            parent.removeChild(element);
+        }
+    });
+}
+
+
+        // create function to update child element with new todo type manually by user
+        function updateTodoManual(newTodo){
+            let parent = document.getElementById("todosM");
+            parent.innerHTML ="";
+            for(let i=0;i<newTodo.length;i++){
+                let title = newTodo[i].title;
+                let description =newTodo[i].description;
+                parent.appendChild(createChild(title,description,globalId++))
+            }
+        }
+        String.prototype.hashCode = function() {
+        var hash = 0, i, chr;
+        for (i = 0; i < this.length; i++) {
+        chr = this.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0;
+        }
+        return hash;
+        };
+        
+        // This create async funtion that will fetch data from server and puch it tot todostate array
+        async function addTodo(){
+            let data =await fetch("http://localhost:3000/todo");
+            let json = await data.json();
+            let todo = json.todoState;
+            globalId =1;
+            todoState=[];
+            for(let i=0;i<todo.length;i++){
+                let title = todo[i].title;
+                let description = todo[i].description;
+                todoState.push({
+                    title : title,
+                    description : description,  
+                    id: title.hashCode()             
+                })
+        }
+            updateTodo(todoState);
+            console.log(todoState)
+        }
+
+        // This function extract input from input tab once user type it using debounce functionality
+        function inputTodo(){
+            let title = document.getElementById("title").value 
+            let description = document.getElementById("description").value 
+            if(!title || !description){
+                return
+            }
+            todoStateM.push({
+                title : title,
+                description : description,
+                id : "M "+ globalId++
+            })
+            updateTodoManual(todoStateM);
+        }
+        
+    let timeout;    
+    function debounceTodo(){
+        clearTimeout(timeout);
+        timeout= setTimeout(()=>{
+            inputTodo();
+        },3000)
     }
 
-    function updateTodo(oldTodo, newTodo) {
-      const element = document.getElementById(oldTodo.id);
-      element.children[0].innerHTML = newTodo.title;
-      element.children[1].innerHTML = newTodo.description;
-      element.children[0].innerHTML = newTodo.completed ? "Mark as done" : "Done";
+    // initiate addTodo() once window is loaded 
+    window.onload = function(){
+        addTodo()
+        setInterval(() => {
+            addTodo()
+        },10000);
+    }  
+
+    </script>
+      <input oninput="debounceTodo()" type="text" placeholder="Title" id="title"><br><br>
+      <input oninput="debounceTodo()" type="text" placeholder="Description" id="description" ><br><br>
+      <h3 class="section-title">Manual Todos</h3>
+      <div id="todosM"></div>
+      <h3 class="section-title">Server Todos</h3>
+      <div id="todos"></div>
+    <style>
+        
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        background-color: #f5f5f5;
     }
 
-    function updateState(newTodos) {
-      // calculate the diff b/w newTodos and oldTodos.
-      // More specifically, find out what todos are - 
-      // 1. added
-      // 2. deleted
-      // 3. updated
-      const added = [];
-      const deleted = [];
-      const updated = [];
-      // calculate these 3 arrays
-      // call addTodo, removeTodo, updateTodo functions on each of the
-      // elements
-      oldTodoState = newTodos;
+    input {
+        padding: 8px;
+        margin: 5px 0;
+        width: 300px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
     }
 
-    function addTodo() {
-      const title = document.getElementById("title").value;
-      const description = document.getElementById("description").value;
-      todoState.push({
-        title: title,
-        description: description,
-        id: globalId++,
-      })
-      updateState(todoState);
+    h3 {
+        margin-top: 30px;
     }
-  </script>
-</head>
 
-<body>
-  <input type="text" id="title" placeholder="Todo title"></input> <br /><br />
-  <input type="text" id="description" placeholder="Todo description"></input> <br /><br />
-  <button onclick="addTodo()">Add todo</button>
-  <br /> <br />
+    .todo-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 30px;
+    }
 
-  <div id="todos">
+    .todo-card {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 10px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
 
-  </div>
-</body>
+    .todo-card button {
+        margin-top: 8px;
+        padding: 6px 10px;
+        background-color: #007BFF;
+        border: none;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+    }
 
+    .todo-card button:hover {
+        background-color: #0056b3;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #333;
+    }
+    </style>  
+    </body> 
 </html>
